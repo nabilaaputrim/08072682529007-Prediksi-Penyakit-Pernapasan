@@ -8,6 +8,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # --- 1. Konfigurasi Halaman ---
+# Tema warna diatur oleh .streamlit/config.toml
 st.set_page_config(
     page_title="Prediksi Penyakit Pernapasan",
     page_icon="🩺",
@@ -21,11 +22,11 @@ def load_and_train_model():
     Memuat dataset, melakukan preprocessing, 
     dan melatih model Bernoulli Naive Bayes.
     """
+    file_path = 'dataset_prediksi_penyakit_pernapasan.csv'
+    
     try:
-        # --- (INI YANG DIUBAH) ---
-        file_path = 'dataset_prediksi_penyakit_pernapasan.csv'
         df = pd.read_csv(file_path)
-
+        
         # Preprocessing (sesuai notebook Anda)
         if 'Umur' in df.columns:
             df = df.drop(columns=['Umur'])
@@ -43,11 +44,9 @@ def load_and_train_model():
         model = BernoulliNB()
         model.fit(X, y_encoded)
         
-        # Mengembalikan model, encoder (le), dan nama fitur
         return model, le, feature_names
 
     except FileNotFoundError:
-        # --- (PESAN ERROR INI JUGA DIUBAH) ---
         st.error(f"Error: File '{file_path}' tidak ditemukan.")
         st.info(f"Pastikan file '{file_path}' berada di folder yang sama dengan file .py ini.")
         return None, None, None
@@ -58,31 +57,34 @@ def load_and_train_model():
 # --- 3. Memuat Model ---
 model, le, feature_names = load_and_train_model()
 
-# --- 4. Antarmuka (UI) Aplikasi ---
+# --- 4. Sidebar (Info Pembuat) ---
+# Menambahkan nama dan NIM Anda di sidebar
+st.sidebar.title("Informasi")
+st.sidebar.markdown("Project ini ditujukan untuk memenuhi tugas Mata Kuliah Komputasi Cerdas Dalam Fisika")
+st.sidebar.divider()
+st.sidebar.markdown("Created By:")
+st.sidebar.markdown("#### Nabila Putri Maulida")
+st.sidebar.markdown("08072682529007")
+st.sidebar.divider()
+
+
+# --- 5. Antarmuka (UI) Aplikasi ---
 
 # Hanya tampilkan UI jika model berhasil dimuat
 if model is not None and le is not None and feature_names is not None:
 
     # --- Bagian Header dan Penjelasan ---
     st.title("🩺 Sistem Prediksi Diagnosis Penyakit Pernapasan")
-    st.markdown("""
-    Selamat datang di aplikasi prediksi penyakit. Aplikasi ini menggunakan model *Machine Learning* (Bernoulli Naive Bayes)
-    untuk menganalisis probabilitas **diagnosis penyakit pernapasan** berdasarkan 16 gejala klinis.
-    
-    **Project ini ditujukan untuk memenuhi tugas Komputasi Cerdas Dalam Fisika.**
-    """)
+    st.markdown("Aplikasi ini menggunakan model *Machine Learning* (Bernoulli Naive Bayes) untuk menganalisis probabilitas diagnosis penyakit pernapasan berdasarkan 16 gejala klinis.")
     st.markdown("---")
 
     # --- Bagian Input Data Diri ---
     st.subheader("1. Masukkan Data Diri Pasien")
     
-    # Menggunakan 2 kolom agar input Nama dan Umur sejajar
     col1, col2 = st.columns(2)
     with col1:
-        nama_pasien = st.text_input("Nama Lengkap Pasien", placeholder="Contoh: Budi Santoso")
+        nama_pasien = st.text_input("Nama Lengkap Pasien", placeholder="Contoh: Taylor Swift")
     with col2:
-        # Note: Model Anda tidak menggunakan Umur, tapi kita tetap menambahkannya
-        # untuk kelengkapan data diri sesuai permintaan Anda.
         umur_pasien = st.number_input("Umur (Tahun)", min_value=0, max_value=120, value=30, step=1)
     
     st.info("Catatan: Input 'Umur' saat ini hanya untuk kelengkapan data. Model ini dilatih **hanya** berdasarkan 16 gejala yang dipilih di bawah.")
@@ -93,17 +95,13 @@ if model is not None and le is not None and feature_names is not None:
 
     user_input = {}
     
-    # Menggunakan 'expander' agar daftar gejala tidak memakan tempat
     with st.expander("Klik di sini untuk melihat dan memilih gejala", expanded=True):
-        
-        # Membuat 4 kolom untuk menata 16 gejala
         cols = st.columns(4)
         
         for i, feature in enumerate(feature_names):
-            # Membagi 16 gejala ke 4 kolom (0, 1, 2, 3)
             col_index = i % 4
             with cols[col_index]:
-                friendly_name = feature.replace("_", " ") # Membuat nama lebih rapi
+                friendly_name = feature.replace("_", " ")
                 user_input[feature] = st.checkbox(friendly_name, key=feature)
     
     st.markdown("---")
@@ -111,67 +109,52 @@ if model is not None and le is not None and feature_names is not None:
     # --- Bagian Tombol Prediksi ---
     st.subheader("3. Mulai Analisis")
     
-    # Tombol dibuat besar dan jelas
     if st.button("Analisis Sekarang", type="primary", use_container_width=True):
         
-        # --- Validasi Input ---
+        # Validasi Input
         if not nama_pasien:
             st.warning("Harap masukkan 'Nama Lengkap Pasien' terlebih dahulu.")
-        
-        # Cek jika tidak ada gejala yang dipilih sama sekali
         elif all(value == False for value in user_input.values()):
             st.warning("Harap pilih minimal satu gejala yang dialami.")
         
         else:
-            # --- Proses Prediksi ---
+            # Proses Prediksi
             try:
-                # 1. Kumpulkan input gejala (list 0 dan 1)
                 input_data = [int(user_input[feature]) for feature in feature_names]
                 input_array = [input_data]
 
-                # 2. Ambil PREDIKSI (hasilnya)
                 prediction_encoded = model.predict(input_array)
                 prediction_text = le.inverse_transform(prediction_encoded)[0]
 
-                # 3. Ambil PROBABILITAS (Persentase)
                 probabilities = model.predict_proba(input_array)[0]
-                
-                # 4. Ambil skor keyakinan dari kelas yang diprediksi
                 confidence_score = probabilities[prediction_encoded[0]]
                 
-                # --- Tampilan Hasil ---
+                # Tampilan Hasil
                 st.subheader(f"Hasil Analisis untuk: {nama_pasien} ({umur_pasien} Tahun)")
                 
-                # Menggunakan container agar hasil terlihat rapi dalam satu boks
                 with st.container(border=True):
                     col_res1, col_res2 = st.columns(2)
-                    
-                    # Kolom 1: Menampilkan Hasil Prediksi
                     with col_res1:
                         st.metric(label="Hasil Prediksi Diagnosis", value=prediction_text)
-                    
-                    # Kolom 2: Menampilkan Persentase Keyakinan
                     with col_res2:
                         st.metric(label="Tingkat Keyakinan Model", value=f"{confidence_score * 100:.2f} %")
                 
                 st.markdown("---")
 
-                # --- Rincian Probabilitas (Diagram Batang) ---
+                # Rincian Probabilitas (Diagram Batang)
                 st.subheader("Rincian Probabilitas (Semua Diagnosis)")
                 
-                # Membuat DataFrame untuk visualisasi
                 prob_df = pd.DataFrame({
-                    'Diagnosis': le.classes_, # Mengambil semua nama diagnosis
-                    'Probabilitas': probabilities * 100 # Ubah ke persentase
+                    'Diagnosis': le.classes_,
+                    'Probabilitas': probabilities * 100
                 }).sort_values(by='Probabilitas', ascending=False)
                 
-                # Mengganti nama kolom agar lebih jelas di diagram
                 prob_df.rename(columns={'Probabilitas': 'Probabilitas (%)'}, inplace=True)
                 
-                # Tampilkan diagram batang
+                # Tampilkan diagram batang (ini akan otomatis mengambil warna primer)
                 st.bar_chart(prob_df.set_index('Diagnosis'))
 
-                # --- Disclaimer Medis (Sangat Penting) ---
+                # Disclaimer Medis
                 st.warning(f"""
                 **DISCLAIMER MEDIS (PENTING):**
                 
@@ -185,5 +168,4 @@ if model is not None and le is not None and feature_names is not None:
 
 # Jika model gagal dimuat di awal
 else:
-    # --- (PESAN ERROR INI JUGA DIUBAH) ---
     st.error("Aplikasi tidak dapat dimuat. Pastikan file 'pernapasan.csv' sudah benar.")
